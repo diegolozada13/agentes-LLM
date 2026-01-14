@@ -1,4 +1,5 @@
 from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent, LoopAgent
+from google.adk.tools import ToolContext
 # from google.adk.sessions import InMemorySessionService
 # session_service = InMemorySessionService()
 # from google.adk.models.lite_llm import LiteLlm
@@ -42,6 +43,11 @@ con_ia_agent = LlmAgent(
     output_key="con_response"
 )
 
+def exit_loop(tool_context: ToolContext) -> str:
+    tool_context.actions.escalate = True
+    return "El agente de bucle ha sido instruido para salir."
+
+
 moderator_agent = LlmAgent(
     name="Moderator_Agent",
     model="gemini-2.5-flash-lite",
@@ -55,10 +61,10 @@ moderator_agent = LlmAgent(
     Pro: {{"{pro_response}"}}
     Con: {{"{con_response}"}}
     
-    Haz un resumen sobre lo debatido en cada turno, y al final da una conclusión imparcial sobre quién
-    presentó los argumentos más sólidos y por qué.
+    Haz un resumen sobre lo debatido en cada turno. Llama a la función exit_loop cuando consideres que se ha llegado a un consenso.
     """,
-    output_key="moderator_summary"
+    output_key="moderator_summary",
+    tools=[exit_loop],
 )
 
 writer_agent = LlmAgent(
@@ -83,7 +89,7 @@ writer_agent = LlmAgent(
 loop_agent = LoopAgent(
     name="Debate_Ethics_Loop_Agent",
     sub_agents=[pro_ia_agent, con_ia_agent, moderator_agent],
-    max_iterations=3,
+    # max_iterations=3,
 )
 
 root_agent = SequentialAgent(
