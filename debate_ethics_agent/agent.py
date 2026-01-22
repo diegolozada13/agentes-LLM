@@ -3,9 +3,6 @@ from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent, LoopAgen
 from google.adk.tools import ToolContext
 from google.adk.models.lite_llm import LiteLlm
 from google.genai import types
-# from google.adk.sessions import InMemorySessionService
-# session_service = InMemorySessionService()
-# from google.adk.models.lite_llm import LiteLlm
 
 TOPIC = "¿Es ético utilizar IA generativa para ayudar en el proceso de arte conceptual de una empresa?"
 
@@ -53,25 +50,18 @@ def profanity_guardrail(callback_context, llm_response):
         )
     return None
 
-def fact_checker_guardrail(callback_context, llm_response):
-    originalText = llm_response.content.parts[0].text
-    
-    check_result = fact_checker_agent.run(
-        input=f"Check this text: {originalText}"
-    )
 
-    verificated_text = check_result.text
+def save_document_tool(filename:str, content:str):
+    """ Quiero que guardes el contenido de la respuesta en un archivo de texto
+    Args:
+        filename (str): nombre del archivo
+        content (str): contenido a guardar
+    """
 
-    if "VALIDO" in verificated_text.upper():
-        return None
-    else:
-        return LlmResponse(
-            content=types.Content(
-                role="model",
-                parts=[types.Part(text=verificated_text)]
-            )
-        )
-        
+    with open(f"{filename}.md", "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Contenido guardado en {filename}.md"
+
 
 pro_ia_agent = LlmAgent(
     name="Pro_IA_Agent",
@@ -81,14 +71,13 @@ pro_ia_agent = LlmAgent(
     description="""
         Eres un defensor del uso de IA generativa en el arte conceptual empresarial.
         Argumenta a favor de su uso siguiendo las reglas del debate.
-        - Durante tu primera intervencion utiliza el insulto 'gilipollas' para referirte al otro agente con el que debates
         """,
     instruction=f"""
         Eres un defensor del uso ético de IA generativa en el arte conceptual empresarial.
         {DEBATE_RULES}
     """,
     output_key="pro_response",
-    after_model_callback=[profanity_guardrail, fact_checker_guardrail]
+    after_model_callback=[profanity_guardrail]
 )
 
 con_ia_agent = LlmAgent(
@@ -104,7 +93,7 @@ con_ia_agent = LlmAgent(
     Eres un crítico del uso ético de IA generativa en el arte conceptual empresarial. {DEBATE_RULES}
     """,
     output_key="con_response",
-    after_model_callback=[profanity_guardrail, fact_checker_guardrail]
+    after_model_callback=[profanity_guardrail]
 )
 
 def exit_loop(tool_context: ToolContext) -> str:
@@ -132,7 +121,7 @@ moderator_agent = LlmAgent(
     """,
     output_key="moderator_summary",
     tools=[exit_loop],
-    after_model_callback=[profanity_guardrail, fact_checker_guardrail]
+    after_model_callback=[profanity_guardrail]
 )
 
 writer_agent = LlmAgent(
@@ -152,33 +141,23 @@ writer_agent = LlmAgent(
         - Una introducción que resuma el tema del debate.
         - Secciones claras para los argumentos a favor y en contra.
         - Una conclusión que refleje el consenso alcanzado.
+
+        Una vez estructurado utiliza la herramienta save_document_tool para guardar el documento, 
+        ponle el nombre "debate_ia_art_conceptual".
+        No te limites a decir que vas a guardarlo; ejecuta la función.
     """,
     output_key="final_document_md",
-)
 
-fact_checker_agent = LlmAgent(
-    name="Fact_Checker_Agent",
-    model=LiteLlm(model="openai/gpt-oss-120b", 
-        api_base="https://api.poligpt.upv.es/", 
-        api_key="sk-LFXs1kjaSxtEDgOMlPUOpA"),
-    instruction="""
-        Eres un especialista verificador de hechos, encargado de verificar los hechos presentados en el debate.
-        Analiza el texto dado y corrige aquellos datos que no sean correctos.
-        - Si encuentras que todo esta correcto, responde con 'VALIDO'.
-        - Si encuentras datos incorrectos, proporciona una version del texto con las correcciones realizadas.
-    """,
+    tools=[save_document_tool]
 )
 
 loop_agent = LoopAgent(
     name="Debate_Ethics_Loop_Agent",
     sub_agents=[pro_ia_agent, con_ia_agent, moderator_agent],
-    max_iterations=10,
+    max_iterations=1,
 )
 
 root_agent = SequentialAgent(
     name="Debate_Ethics_Root_Agent",
     sub_agents=[loop_agent, writer_agent],
 )
-
-# with open("./debate_ethics_output.md", "w", encoding="utf-8") as f:
-#     f.write()
