@@ -154,7 +154,7 @@ writer_agent = LlmAgent(
 loop_agent = LoopAgent(
     name="Debate_Ethics_Loop_Agent",
     sub_agents=[pro_ia_agent, con_ia_agent, moderator_agent],
-    max_iterations=1,
+    max_iterations=10,
 )
 
 root_agent = SequentialAgent(
